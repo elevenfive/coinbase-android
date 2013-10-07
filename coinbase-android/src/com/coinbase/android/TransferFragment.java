@@ -94,7 +94,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
 
     protected Object[] doInBackground(Object... params) {
 
-      return doTransfer((TransferType) params[0], (String) params[1], (String) params[2], (String) params[3], (Boolean) params[4]);
+      return doTransfer((TransferType) params[0], (String) params[1], (String) params[2], (String) params[3], (Boolean) params[4], (Boolean) params[5]);
     }
 
     protected void onPostExecute(Object[] result) {
@@ -196,6 +196,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
           toFrom = getArguments().getString("toFrom"),
           notes = getArguments().getString("notes");
       final boolean isFeePrompt = getArguments().getBoolean("isFeePrompt");
+      final boolean finish = getArguments().getBoolean("finish");
 
       int messageResource;
 
@@ -220,7 +221,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
           TransferFragment parent = getActivity() == null ? null : ((MainActivity) getActivity()).getTransferFragment();
 
           if(parent != null) {
-            parent.startTransferTask(type, amount, notes, toFrom, isFeePrompt);
+            parent.startTransferTask(type, amount, notes, toFrom, isFeePrompt, finish);
           }
         }
       })
@@ -281,6 +282,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
 
   private int mTransferType;
   private String mAmount, mNotes, mRecipient, mTransferCurrency;
+  boolean mFinish;
 
   private TextView mNativeAmount;
   private long mNativeExchangeRateTime;
@@ -469,6 +471,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
         b.putString("notes", mNotes);
         b.putString("toFrom", mRecipient);
         b.putBoolean("isFeePrompt", ((BigDecimal) btcAmount).compareTo(new BigDecimal("0.001")) == -1);
+        b.putBoolean("finish", mFinish);
 
         dialog.setArguments(b);
 
@@ -824,12 +827,12 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
     updateNativeCurrency();
   }
 
-  protected void startTransferTask(TransferType type, String amount, String notes, String toFrom, boolean addFee) {
+  protected void startTransferTask(TransferType type, String amount, String notes, String toFrom, boolean addFee, boolean finish) {
 
-    Utils.runAsyncTaskConcurrently(new DoTransferTask(), type, amount, notes, toFrom, addFee);
+    Utils.runAsyncTaskConcurrently(new DoTransferTask(), type, amount, notes, toFrom, addFee, finish);
   }
 
-  private Object[] doTransfer(TransferType type, String amount, String notes, String toFrom, boolean addFee) {
+  private Object[] doTransfer(TransferType type, String amount, String notes, String toFrom, boolean addFee, boolean finish) {
 
     List<BasicNameValuePair> params = new ArrayList<BasicNameValuePair>();
     params.add(new BasicNameValuePair("transaction[amount]", amount));
@@ -852,7 +855,10 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
       boolean success = response.getBoolean("success");
 
       if(success) {
-
+    	  if (finish) {
+    	    TransferFragment.this.getActivity().finish();
+    	  }
+    	  
         return new Object[] { true, amount, type, toFrom };
       } else {
 
@@ -878,6 +884,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
   public void fillFormForBitcoinUri(String content) {
 
     String amount = null, label = null, message = null, address = null;
+    boolean finish = false;
 
     if(content.startsWith("bitcoin:")) {
 
@@ -903,6 +910,8 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
               label = value;
             } else if("message".equals(key)) {
               message = value;
+            } else if ("finish".equals(key)) {
+              finish = Boolean.parseBoolean(value);
             }
           }
         } catch (UnsupportedEncodingException e) {
@@ -930,6 +939,7 @@ public class TransferFragment extends Fragment implements CoinbaseFragment {
     mRecipient = address;
     mTransferType = 0;
     mTransferCurrency = "BTC";
+    mFinish = finish;
 
     if(mTransferTypeView != null) {
       mTransferTypeView.setSelection(0); // SEND
